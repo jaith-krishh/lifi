@@ -53,11 +53,11 @@ PREAMBLE | LEN (1 byte) | PAYLOAD (LEN bytes) | CHECKSUM (1 byte) | END
 - `CHECKSUM = LEN XOR payload[0] XOR payload[1] …`. The receiver rejects any frame whose checksum doesn't match.
 - The receiver only has to measure how long each **ON** pulse lasts:
   `ON ≥ 55 ms → preamble`, `ON ≥ 20 ms → 1`, otherwise `0`.
-  Each threshold sits halfway between two pulse widths, so there is margin for the LDR's slow response.
+  Each threshold sits halfway between two pulse widths. The receiver also subtracts the LDR's lag, which it measures on the preamble.
 
 Example: `"HI"` → `LEN=0x02`, `'H'=0x48`, `'I'=0x49`, `CHK=0x02^0x48^0x49=0x03`.
 
-Speed: about 35 ms per bit, so roughly 28 bit/s. A 10-character message is 12 bytes and takes about 3.5 s per frame. That is slow, but an LDR physically can't follow pulses much faster. See the tips below.
+Speed (default timing): about 35 ms per bit, so roughly 28 bit/s. A 10-character message is 12 bytes and takes about 3.5 s per frame. That is slow, but an LDR physically can't follow pulses much faster. See the tips below.
 
 ## 4. Upload
 
@@ -84,7 +84,7 @@ Speed: about 35 ms per bit, so roughly 28 bit/s. A 10-character message is 12 by
 - Type any text (up to 32 characters) in Serial Monitor and press Enter to set the custom message.
 - The frame repeats every ~1 s. The status LED stays on while a frame is being sent.
 - Each frame is logged to Serial, for example
-  `[TX #4] "HELLO LIFI" len=10 chk=0x4B`.
+  `[TX #4] "HELLO LIFI" len=10 chk=0x62`.
   Compare this with what the receiver prints to check the link.
 
 To change the presets, edit `MSG_0` … `MSG_4` at the top of the sketch. To add more, add `MSG_5` and include it in `MESSAGES[]`. The slot count adjusts automatically.
@@ -99,18 +99,12 @@ To change the presets, edit `MSG_0` … `MSG_4` at the top of the sketch. To add
 
 - **Alignment:** put the LED and LDR 2–10 cm apart and pointing straight at each other. A straw or black paper tube around the LDR blocks room light a lot.
 - **LED choice:** a white or red high-brightness LED works best with a CdS LDR. LDRs respond weakly to IR and blue.
-- **LDR speed:** a CdS LDR takes ~10–30 ms to respond, and the 10 ms `0` pulse is right at that limit. If the receiver misreads `0`s:
-  - raise `T_ZERO_ON` to 15 and `T_ONE_ON` to 45, and the OFF times to 25, **and change the receiver to match**; or
-  - swap the LDR for a **phototransistor (e.g. TEPT5700, L14G1) or photodiode**. They respond in microseconds, so you could shrink every timing to ~1 ms and get ~1000× the speed.
+- **LDR speed:** a CdS LDR is slow to go dark again, so every pulse looks longer at the receiver. The receiver corrects for this automatically, using the 80 ms preamble as a timing reference. Simulation (`tests/`) shows the default timing works up to a sensor fall time of ~15 ms. Many LDRs are slower than that, about 30 ms for a GL5528. If the dashboard shows lots of `checksum`/`length` errors:
+  - set `LDR_SAFE_PROFILE = true` in this sketch **and** uncomment `#define LIFI_PROFILE LIFI_PROFILE_LDR_SAFE` in the receiver (~9 bit/s; works up to ~40 ms fall time); or
+  - swap the LDR for a **phototransistor (e.g. TEPT5700, L14G1) or photodiode**. They respond in microseconds.
 - **Never block in `delay()` elsewhere:** the timing is software-driven, so keep `loop()` simple. Add sensors only between frames.
 - **Power:** 220 Ω on D3 draws only ~10–15 mA, well below the Nano's 40 mA pin limit. For more range, drive a brighter LED through an NPN transistor (2N2222/BC547: D3 → 1 kΩ → base, LED + resistor on the collector).
 
-## 8. What the receiver needs to match
+## 8. Receiver
 
-Share these with whoever writes the ESP32 code:
-
-- Detect a rising edge (ADC > threshold) and measure the ON width.
-- `ON ≥ 55 ms` → reset the bit buffer (start of frame).
-- Then collect bits: `ON ≥ 20 ms` → 1, else 0, MSB first.
-- First byte = LEN (reject if 0 or > 32), then LEN payload bytes, then the checksum.
-- An OFF period longer than ~70 ms means end of frame. Verify the XOR checksum, then show the message and chirp the buzzer.
+The matching ESP32 receiver and web dashboard are in [`../receiver_esp32`](../receiver_esp32). Both boards must use the same timing profile.

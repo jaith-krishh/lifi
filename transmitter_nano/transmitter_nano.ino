@@ -14,14 +14,15 @@
  *   - every byte is sent MSB first, 8 bits
  *   - CHECKSUM = XOR of LEN and every payload byte
  *
- * Symbol timing (ms)
- *   Preamble : ON 80, OFF 40
- *   Bit '1'  : ON 30, OFF 15
- *   Bit '0'  : ON 10, OFF 15
- *   End      : OFF 100
+ * Symbol timing (ms)            default   LDR_SAFE
+ *   Preamble : ON / OFF          80 / 40   240 / 120
+ *   Bit '1'  : ON / OFF          30 / 15   100 / 50
+ *   Bit '0'  : ON / OFF          10 / 15    30 / 50
+ *   End      : OFF                   100         300
  *
- * The receiver tells symbols apart by ON-pulse width only:
- *   ON >= 55 ms -> preamble, ON >= 20 ms -> '1', otherwise '0'.
+ * The receiver tells symbols apart by ON-pulse width only (default timing:
+ * ON >= 55 ms -> preamble, ON >= 20 ms -> '1', otherwise '0'), after
+ * subtracting the sensor lag it measures on the preamble.
  *
  * Serial Monitor (9600 baud): type a line and press Enter to send a custom
  * message. Turn the pot back to another slot to return to the presets.
@@ -33,12 +34,16 @@ const uint8_t PIN_STATUS_LED = 2;
 const uint8_t PIN_SELECT_POT = A0;
 
 // ---------- Timing (ms) — must match the receiver ----------
-const uint16_t T_PREAMBLE_ON  = 80;
-const uint16_t T_PREAMBLE_OFF = 40;
-const uint16_t T_ONE_ON       = 30;
-const uint16_t T_ZERO_ON      = 10;
-const uint16_t T_BIT_OFF      = 15;
-const uint16_t T_END_OFF      = 100;
+// Set to true on BOTH boards if the receiver's LDR is too slow for the default
+// timing (receiver: uncomment LIFI_PROFILE_LDR_SAFE). ~9 bit/s instead of ~29.
+const bool LDR_SAFE_PROFILE = false;
+
+const uint16_t T_PREAMBLE_ON  = LDR_SAFE_PROFILE ? 240 : 80;
+const uint16_t T_PREAMBLE_OFF = LDR_SAFE_PROFILE ? 120 : 40;
+const uint16_t T_ONE_ON       = LDR_SAFE_PROFILE ? 100 : 30;
+const uint16_t T_ZERO_ON      = LDR_SAFE_PROFILE ? 30  : 10;
+const uint16_t T_BIT_OFF      = LDR_SAFE_PROFILE ? 50  : 15;
+const uint16_t T_END_OFF      = LDR_SAFE_PROFILE ? 300 : 100;
 const uint16_t T_FRAME_GAP    = 1000;  // idle time between repeated frames
 
 // ---------- Messages ----------
