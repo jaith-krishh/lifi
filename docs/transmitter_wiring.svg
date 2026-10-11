@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" role="img" aria-label="Transmitter wiring: D3 through 220 ohm to the data LED, D2 through 1k to the status LED, and a 10k pot between 5V and GND with its wiper on A0. Every circuit returns to the shared GND rail." font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#1f2328" stroke="#1f2328">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f2328" stroke="none"/>
+    </marker>
+    <marker id="light" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#d97706" stroke="none"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="760" height="430" fill="#ffffff" stroke="none"/>
+
+  <!-- Arduino Nano -->
+  <rect x="30" y="40" width="150" height="330" rx="8" fill="#e8f0fe" stroke-width="2"/>
+  <text x="105" y="68" text-anchor="middle" font-weight="bold" stroke="none">Arduino Nano</text>
+  <g stroke="none" font-size="12" text-anchor="end">
+    <text x="170" y="114">D3</text>
+    <text x="170" y="204">D2</text>
+    <text x="170" y="294">A0</text>
+    <text x="170" y="334">5V</text>
+    <text x="170" y="364">GND</text>
+  </g>
+  <g fill="#1f2328">
+    <circle cx="180" cy="110" r="4"/>
+    <circle cx="180" cy="200" r="4"/>
+    <circle cx="180" cy="290" r="4"/>
+    <circle cx="180" cy="330" r="4"/>
+    <circle cx="180" cy="360" r="4"/>
+  </g>
+  <text x="105" y="400" text-anchor="middle" font-size="12" fill="#57606a" stroke="none">USB → laptop (power + Serial)</text>
+
+  <!-- GND rail on the right -->
+  <line x1="700" y1="90" x2="700" y2="400" stroke-width="3"/>
+  <line x1="180" y1="360" x2="215" y2="360" stroke-width="2"/>
+  <line x1="215" y1="360" x2="215" y2="400" stroke-width="2"/>
+  <line x1="215" y1="400" x2="700" y2="400" stroke-width="3"/>
+  <text x="712" y="250" stroke="none" font-weight="bold" transform="rotate(90 712 250)" text-anchor="middle">GND rail</text>
+
+  <!-- Branch 1: D3 -> 220R -> Tx LED -> GND -->
+  <line x1="180" y1="110" x2="290" y2="110" stroke-width="2"/>
+  <rect x="290" y="98" width="80" height="24" fill="#fff" stroke-width="2"/>
+  <text x="330" y="114" text-anchor="middle" stroke="none" font-size="12">220 Ω</text>
+  <text x="330" y="90" text-anchor="middle" stroke="none" font-size="11" fill="#57606a">red-red-brown</text>
+  <line x1="370" y1="110" x2="450" y2="110" stroke-width="2"/>
+  <!-- LED symbol -->
+  <polygon points="450,94 450,126 478,110" fill="#fde68a" stroke-width="2"/>
+  <line x1="478" y1="94" x2="478" y2="126" stroke-width="2"/>
+  <line x1="478" y1="110" x2="700" y2="110" stroke-width="2"/>
+  <text x="464" y="146" text-anchor="middle" stroke="none" font-weight="bold">Tx LED (data)</text>
+  <text x="464" y="162" text-anchor="middle" stroke="none" font-size="11" fill="#57606a">long leg ← resistor</text>
+  <line x1="488" y1="86" x2="540" y2="58" stroke="#d97706" stroke-width="2" marker-end="url(#light)"/>
+  <line x1="498" y1="98" x2="550" y2="70" stroke="#d97706" stroke-width="2" marker-end="url(#light)"/>
+  <text x="560" y="54" stroke="none" fill="#b45309" font-weight="bold">light → LDR</text>
+
+  <!-- Branch 2: D2 -> 1k -> status LED -> GND -->
+  <line x1="180" y1="200" x2="290" y2="200" stroke-width="2"/>
+  <rect x="290" y="188" width="80" height="24" fill="#fff" stroke-width="2"/>
+  <text x="330" y="204" text-anchor="middle" stroke="none" font-size="12">1 kΩ</text>
+  <text x="330" y="180" text-anchor="middle" stroke="none" font-size="11" fill="#57606a">brown-black-red</text>
+  <line x1="370" y1="200" x2="450" y2="200" stroke-width="2"/>
+  <polygon points="450,184 450,216 478,200" fill="#bbf7d0" stroke-width="2"/>
+  <line x1="478" y1="184" x2="478" y2="216" stroke-width="2"/>
+  <line x1="478" y1="200" x2="700" y2="200" stroke-width="2"/>
+  <text x="464" y="236" text-anchor="middle" stroke="none" font-weight="bold">Status LED</text>
+  <text x="464" y="252" text-anchor="middle" stroke="none" font-size="11" fill="#57606a">on while sending</text>
+
+  <!-- Branch 3: pot between 5V and GND, wiper to A0 -->
+  <line x1="180" y1="330" x2="560" y2="330" stroke-width="2"/>
+  <rect x="560" y="318" width="90" height="24" fill="#fff" stroke-width="2"/>
+  <text x="605" y="334" text-anchor="middle" stroke="none" font-size="12">10 kΩ pot</text>
+  <line x1="650" y1="330" x2="700" y2="330" stroke-width="2"/>
+  <!-- wiper -->
+  <line x1="605" y1="290" x2="605" y2="316" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="180" y1="290" x2="605" y2="290" stroke-width="2"/>
+  <text x="400" y="282" text-anchor="middle" stroke="none" font-size="12">wiper (middle leg) → A0: picks the message</text>
+  <text x="400" y="322" text-anchor="middle" stroke="none" font-size="12">outer leg → 5V</text>
+  <text x="675" y="322" text-anchor="middle" stroke="none" font-size="11" fill="#57606a">outer leg</text>
+</svg>

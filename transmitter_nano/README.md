@@ -13,28 +13,97 @@ This sketch sends text over a beam of light. It uses pulse-width On-Off Keying (
 | 1 | 10 kΩ potentiometer | Picks which message to send |
 | — | Breadboard, jumpers, USB cable | |
 
-## 2. Wiring
+## 2. Hardware setup
+
+![Transmitter wiring](../docs/transmitter_wiring.svg)
+
+The transmitter is three small circuits, each starting at a Nano pin and ending on the shared GND rail:
+
+| Circuit | Path | Job |
+|---|---|---|
+| Data LED | **D3 → 220 Ω → LED → GND** | Sends the light signal |
+| Status LED | **D2 → 1 kΩ → LED → GND** | Lights while a frame is sent |
+| Selector pot | **5V → pot → GND**, middle leg **→ A0** | Picks which message to send |
+
+### 2.1 Identify your parts
+
+- **LED polarity:** the **long leg is + (anode)**. The short leg, on the side with the flat edge of the rim, is − (cathode). A reversed LED does nothing, but it isn't damaged.
+- **Resistor colour bands** (4-band, read from the end away from the gold band):
+  - **220 Ω** = red, red, brown, gold
+  - **1 kΩ** = brown, black, red, gold
+
+  If unsure, check with a multimeter on Ω. Resistors have no polarity.
+- **10 kΩ pot:** marked `103` or `B10K`. With the knob facing you and the legs pointing down, the legs are left, middle (wiper) and right.
+- **Breadboard:**
+  - In the middle area, each numbered **row of 5 holes (a–e or f–j) is connected**.
+  - The centre gap separates the two halves.
+  - The long **+ and − rails** along the edges run the full length. On some boards they're split in the middle, so bridge them with a jumper.
+
+### 2.2 Build it step by step
+
+**Unplug USB while wiring.**
+
+1. **Place the Nano.** Push it in so it straddles the centre gap, with the USB connector at one end of the breadboard. Each Nano pin now has its own row with 4 free holes beside it.
+   - The **D2/D3 side** reads, from the USB end: `D12 … D4, D3, D2, GND, RST, RX0, TX1`.
+   - The **A0/5V side** reads: `D13, 3V3, REF, A0 … A7, 5V, RST, GND, VIN`.
+2. **Power rails.**
+   - Jumper from the Nano's **5V** row to the **+ rail**.
+   - Jumper from a Nano **GND** row to the **− rail**.
+3. **Data LED (D3).**
+   - Put one end of the **220 Ω** resistor in the D3 row and the other end in an empty row, say row X.
+   - Put the data LED's **long leg in row X**.
+   - Put its **short leg into the − rail**.
+   - Use the brightest LED you have (white or red), and point it off the edge of the board toward where the receiver will sit.
+4. **Status LED (D2).** Same pattern: **1 kΩ** from the D2 row to an empty row Y, **long leg in row Y**, short leg to the **− rail**.
+5. **Selector pot.**
+   - Place the pot with its three legs in three different rows.
+   - **Left leg → − rail (GND).**
+   - **Right leg → + rail (5V).**
+   - **Middle leg → jumper to the A0 row.**
+
+   Wired this way, turning **clockwise** goes from preset 0 up to the custom-message slot. That's the direction the table in section 5 assumes.
+6. **Double-check before powering up:**
+   - Nothing connects the + rail directly to the − rail. With USB unplugged, a multimeter on continuity between 5V and GND should **not** beep.
+   - Both LEDs have the long leg toward the resistor or pin, and the short leg on the − rail.
+   - Neither resistor has both legs in the same row (that would short it out).
+
+### 2.3 Power-on test
+
+1. Plug in USB. The Nano's own power LED lights.
+2. Upload the sketch (section 4).
+3. **Both LEDs blink 3 times** (self test), then the data LED flickers in bursts about once a second, with the status LED on during each burst.
+4. Open Serial Monitor (9600 baud). You should see `[TX #1] "..."` lines, and turning the pot prints `Selected slot N`.
+
+| Problem | Likely cause |
+|---|---|
+| An LED never lights | Reversed, or the resistor is in the wrong row. Flip the LED first. |
+| Data LED glows very dimly | Wrong resistor: you probably used the 1 kΩ or a 10 kΩ on D3. |
+| Pot does nothing / always the same slot | The middle leg isn't on A0, or an outer leg isn't connected. |
+| Pot works backwards | Swap the two outer legs. |
+| Nano not detected by the PC | Clone boards need the CH340 USB driver. Also try another cable: some cables only charge. |
+| Upload fails | Tools → Processor → **ATmega328P (Old Bootloader)**. |
+
+### 2.4 Aiming the beam
+
+- Mount the data LED so it **points straight at the LDR**, 2–10 cm away, at the same height. Bend its legs 90° or extend them with female–male jumpers so you can aim it freely.
+- Slip a short **black straw or rolled paper tube** over the LED, and another over the LDR. This narrows the beam and blocks room light. It's the single biggest reliability improvement.
+- Keep the **status LED pointing away** from the LDR so it doesn't add a second signal.
+- Power: USB from a laptop lets you type custom messages. A USB power bank works too, for a cable-free demo.
+
+### 2.5 Optional: more range with a transistor
+
+D3 can only supply ~20 mA safely. For a brighter beam (longer distance, or several LEDs in parallel, each with its own resistor), let a transistor switch the LED from 5V:
 
 ```
-          Arduino Nano
-        ┌──────────────┐
-        │           D3 ├──[220Ω]──►|── GND     Tx LED (long leg toward resistor)
-        │           D2 ├──[ 1kΩ]──►|── GND     Status LED
-        │           A0 ├──────────┐
-        │           5V ├───┐      │
-        │          GND ├─┐ │      │
-        └──────────────┘ │ │   ┌──┴──┐
-                         │ └───┤ POT ├───┐
-                         │     └─────┘   │
-                         └───────────────┘
-           (pot: outer pins to 5V and GND, middle wiper to A0)
+D3 ──[1 kΩ]── Base        (NPN: 2N2222 or BC547)
+               Emitter ── GND
+               Collector ── LED cathode (short leg)
+5V ──[100 Ω]── LED anode (long leg)          ~20–30 mA per LED
 ```
 
-Checklist:
-1. D3 → 220 Ω → LED anode (long leg). LED cathode (short leg, flat side) → GND.
-2. D2 → 1 kΩ → status LED anode. Its cathode → GND.
-3. Pot: one outer pin → 5V, the other outer pin → GND, middle pin → A0.
-4. Connect all GNDs together.
+Pin order with the flat face toward you, legs down: **2N2222 (TO-92) = E B C**, **BC547 = C B E**. Check your part's datasheet, because some versions differ.
+
+The sketch needs no change: HIGH on D3 still means light on.
 
 ## 3. Protocol
 
