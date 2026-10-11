@@ -1,1 +1,3 @@
 tests/link_sim
+tests/profile_check_fast
+tests/profile_check_safe

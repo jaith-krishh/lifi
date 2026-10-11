@@ -1,7 +1,7 @@
 /*
  * Host-side end-to-end simulation of the LiFi link.
  *
- *   Transmitter encoding (from the protocol spec)
+ *   lifi_tx::buildFrame + emitFrame (the exact code the Nano runs)
  *     -> LED light level per millisecond
  *     -> LDR modelled as a first-order lag (separate rise / fall time constants)
  *     -> ambient light + ADC noise, 12-bit clamp
@@ -16,27 +16,23 @@
 #include <vector>
 
 #include "../receiver_esp32/LiFiDecoder.h"
+#include "../transmitter_nano/LiFiEncoder.h"
 
 using namespace lifi;
 
-// ---- Transmitter (mirrors transmitter_nano.ino) ----
-static Timing T;  // timing profile under test
+// ---- Transmitter: the Nano's own encoder ----
+static lifi_tx::Timing TX = lifi_tx::TIMING_FAST;  // transmitter profile under test
+static Timing T;                                   // receiver profile under test
 
-static void pulse(std::vector<uint8_t>& s, int on, int off) {
-  s.insert(s.end(), on, 1);
-  s.insert(s.end(), off, 0);
-}
-static void sendByte(std::vector<uint8_t>& s, uint8_t v) {
-  for (int i = 7; i >= 0; i--) pulse(s, (v >> i) & 1 ? T.oneOn : T.zeroOn, T.bitOff);
-}
 static void sendFrame(std::vector<uint8_t>& s, const std::string& msg, bool corrupt = false) {
-  uint8_t len = (uint8_t)msg.size(), chk = len;
-  pulse(s, T.preambleOn, T.preambleOff);
-  sendByte(s, len);
-  for (char c : msg) { sendByte(s, (uint8_t)c); chk ^= (uint8_t)c; }
-  sendByte(s, corrupt ? (uint8_t)(chk ^ 0x01) : chk);
-  s.insert(s.end(), T.endOff, 0);  // end of frame
-  s.insert(s.end(), 1000, 0);  // gap between frames
+  uint8_t frame[lifi_tx::MAX_FRAME_BYTES];
+  uint8_t n = lifi_tx::buildFrame(msg.c_str(), frame);
+  if (corrupt) frame[n - 1] ^= 0x01;
+  lifi_tx::emitFrame(frame, n, TX, [&s](uint16_t on, uint16_t off) {
+    s.insert(s.end(), on, 1);
+    s.insert(s.end(), off, 0);
+  });
+  s.insert(s.end(), 1000, 0);  // gap between frames (T_FRAME_GAP)
 }
 
 static float gFraction = Slicer().autoFraction;
@@ -97,15 +93,39 @@ static void check(bool cond, const char* what) {
   if (!cond) failures++;
 }
 
+// Receiver timing is set from the transmitter's table; profile_check.cpp
+// verifies the two tables are identical in both profiles.
 static void setProfile(int profile) {
-  Timing fast, safe;
-  if (profile == 1) {
-    safe.preambleOn = 240; safe.preambleOff = 120; safe.oneOn = 100;
-    safe.zeroOn = 30; safe.bitOff = 50; safe.endOff = 300;
-    T = safe;
-  } else {
-    T = fast;
-  }
+  TX = profile == 1 ? lifi_tx::TIMING_LDR_SAFE : lifi_tx::TIMING_FAST;
+  T.preambleOn = TX.preambleOn; T.preambleOff = TX.preambleOff;
+  T.oneOn = TX.oneOn; T.zeroOn = TX.zeroOn; T.bitOff = TX.bitOff; T.endOff = TX.endOff;
+}
+
+static void encoderTests() {
+  printf("=== Transmitter encoder ===\n");
+  uint8_t f[lifi_tx::MAX_FRAME_BYTES];
+
+  uint8_t n = lifi_tx::buildFrame("HI", f);
+  check(n == 4 && f[0] == 0x02 && f[1] == 0x48 && f[2] == 0x49 && f[3] == 0x03,
+        "\"HI\" -> 02 48 49 03 (LEN, 'H', 'I', CHK)");
+
+  std::string longMsg(40, 'x');
+  n = lifi_tx::buildFrame(longMsg.c_str(), f);
+  check(n == lifi_tx::MAX_FRAME_BYTES && f[0] == lifi_tx::MAX_PAYLOAD,
+        "40-char message is cut to 32 payload bytes");
+
+  int symbols = 0, ones = 0;
+  uint16_t lastOn = 1, lastOff = 0;
+  n = lifi_tx::buildFrame("HI", f);
+  lifi_tx::emitFrame(f, n, lifi_tx::TIMING_FAST, [&](uint16_t on, uint16_t off) {
+    symbols++;
+    if (on == lifi_tx::TIMING_FAST.oneOn) ones++;
+    lastOn = on; lastOff = off;
+  });
+  // 02 48 49 03 has 1 + 2 + 3 + 2 = 8 one-bits.
+  check(symbols == 1 + 8 * 4 + 1 && ones == 8 && lastOn == 0 && lastOff == 100,
+        "emits preamble, 32 bits MSB-first (8 ones), then a dark end gap");
+  printf("\n");
 }
 
 static void envelope(const std::vector<std::string>& msgs, const double* falls, int nFalls,
@@ -125,7 +145,9 @@ static void envelope(const std::vector<std::string>& msgs, const double* falls, 
 }
 
 int main() {
-  const std::vector<std::string> msgs = {"HELLO LIFI", "TEMP:27C", "STATUS:OK", "ALERT!", "NODE-TX-01",
+  encoderTests();
+
+  const std::vector<std::string> msgs = {"HELLO LIFI", "T:31C V:4.97 #12", "STATUS:OK", "ALERT!", "NODE-TX-01",
                                          "~!@#$%^&*()_+{}|:<>?", "abcdefghijklmnopqrstuvwxyz012345"};
 
   printf("=== FAST profile (spec timing) ===\n");
@@ -157,7 +179,7 @@ int main() {
 
   printf("\n=== LDR_SAFE profile ===\n");
   setProfile(1);
-  const std::vector<std::string> short_msgs = {"HELLO LIFI", "TEMP:27C", "~!@#$%^&*()_+{}|:<>?"};
+  const std::vector<std::string> short_msgs = {"HELLO LIFI", "T:31C V:4.97 #12", "~!@#$%^&*()_+{}|:<>?"};
 
   printf("6) Datasheet-slow LDR (GL5528: rise 20 ms, fall 30 ms), auto threshold\n");
   r = run(short_msgs, 20, 30, 25, -1, false, false);

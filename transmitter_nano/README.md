@@ -39,40 +39,103 @@ The transmitter is three small circuits, each starting at a Nano pin and ending 
   - The centre gap separates the two halves.
   - The long **+ and − rails** along the edges run the full length. On some boards they're split in the middle, so bridge them with a jumper.
 
-### 2.2 Build it step by step
+### 2.2 Layout plan
 
-**Unplug USB while wiring.**
+Lay the board out in three zones, so the light path is clear and wires never cross:
 
-1. **Place the Nano.** Push it in so it straddles the centre gap, with the USB connector at one end of the breadboard. Each Nano pin now has its own row with 4 free holes beside it.
-   - The **D2/D3 side** reads, from the USB end: `D12 … D4, D3, D2, GND, RST, RX0, TX1`.
-   - The **A0/5V side** reads: `D13, 3V3, REF, A0 … A7, 5V, RST, GND, VIN`.
-2. **Power rails.**
-   - Jumper from the Nano's **5V** row to the **+ rail**.
-   - Jumper from a Nano **GND** row to the **− rail**.
-3. **Data LED (D3).**
-   - Put one end of the **220 Ω** resistor in the D3 row and the other end in an empty row, say row X.
-   - Put the data LED's **long leg in row X**.
-   - Put its **short leg into the − rail**.
-   - Use the brightest LED you have (white or red), and point it off the edge of the board toward where the receiver will sit.
-4. **Status LED (D2).** Same pattern: **1 kΩ** from the D2 row to an empty row Y, **long leg in row Y**, short leg to the **− rail**.
-5. **Selector pot.**
-   - Place the pot with its three legs in three different rows.
-   - **Left leg → − rail (GND).**
-   - **Right leg → + rail (5V).**
-   - **Middle leg → jumper to the A0 row.**
+```
+ rails on the D2/D3 side:  − (GND) ════════════════════════════════════════
+ ┌────────────────────────┬──────────────────────────────────────────────┐
+ │                        │  rows 20–25: D3 → 220 Ω → DATA LED ──► beam  │
+ │     Arduino Nano       │  rows 28–33: D2 → 1 kΩ  → status LED         │
+ │  rows 1–15, USB at the ├ ─ ─ ─ ─ ─ ─ ─ centre gap ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤
+ │  board edge (row 1)    │  rows 20–24: 10 kΩ pot (selector knob)       │
+ └────────────────────────┴──────────────────────────────────────────────┘
+ rails on the A0/5V side:  + (5V) and − (GND) ═════════════════════════════
+```
 
-   Wired this way, turning **clockwise** goes from preset 0 up to the custom-message slot. That's the direction the table in section 5 assumes.
-6. **Double-check before powering up:**
-   - Nothing connects the + rail directly to the − rail. With USB unplugged, a multimeter on continuity between 5V and GND should **not** beep.
-   - Both LEDs have the long leg toward the resistor or pin, and the short leg on the − rail.
-   - Neither resistor has both legs in the same row (that would short it out).
+- The **data LED** sits at the far end, away from the Nano and the status LED, so it can point off the board toward the receiver.
+- The **pot** goes on the other half of the board, where you can turn it without bumping the LED's aim.
 
-### 2.3 Power-on test
+### 2.3 Build it hole by hole
+
+**Unplug USB while wiring.** Hole names below are *column letter + row number* (e.g. `a10`). Each numbered row of 5 holes on one half (a–e, or f–j) is connected.
+
+**Step 1: place the Nano**
+
+Push it in at rows 1–15 with the USB connector at the board's edge, straddling the centre gap. Read the labels printed on the Nano, and rotate the breadboard so the **D2/D3 side is in the a–e half**.
+
+The Nano covers the holes next to the gap, so each pin row has only **2–3 free holes on the outside**. The steps below assume those are **a, b** (D side) and **h, i, j** (A side).
+
+| Row | D side (a–e) | A side (f–j) |
+|---|---|---|
+| 4 | D9 | **A0** |
+| 10 | **D3** | A6 |
+| 11 | **D2** | A7 |
+| 12 | **GND** | **5V** |
+| 14 | RX0 | **GND** |
+
+(Full order from the USB end: D side `D12 D11 D10 D9 D8 D7 D6 D5 D4 D3 D2 GND RST RX0 TX1`; A side `D13 3V3 REF A0 A1 … A7 5V RST GND VIN`. If your rows don't match, go by the printed labels: only the pin names matter.)
+
+**Step 2: power rails** (three short jumpers)
+
+| From | To |
+|---|---|
+| `a12` (GND) | − rail on the D2/D3 side |
+| `j12` (5V) | + rail on the A0 side |
+| `j14` (GND) | − rail on the A0 side |
+
+**Step 3: data LED (the transmitter)**
+
+| Part | Holes |
+|---|---|
+| Jumper (D3 out) | `a10` → `a20` |
+| **220 Ω** (red-red-brown) | `b20` → `b24` |
+| Data LED **long leg (+)** | `c24` |
+| Data LED short leg (−) | `c25` |
+| Jumper to GND | `a25` → − rail |
+
+**Step 4: status LED**
+
+Same pattern, further along:
+
+| Part | Holes |
+|---|---|
+| Jumper (D2 out) | `a11` → `a28` |
+| **1 kΩ** (brown-black-red) | `b28` → `b32` |
+| Status LED **long leg (+)** | `c32` |
+| Status LED short leg (−) | `c33` |
+| Jumper to GND | `a33` → − rail |
+
+**Step 5: selector pot** (A0/5V half)
+
+Put the three legs in three different rows, e.g. `f20`, `f22`, `f24` (match your pot's leg spacing). With the knob facing you:
+
+| Pot leg | Jumper to |
+|---|---|
+| Left leg row (`j20`) | − rail on the A0 side (GND) |
+| Middle leg / wiper row (`j22`) | `j4` (**A0**) |
+| Right leg row (`j24`) | + rail on the A0 side (5V) |
+
+Wired this way, turning **clockwise** steps from the first preset toward the custom-message slot, matching the table in section 5. If it works backwards, swap the two outer jumpers.
+
+**Step 6: double-check before powering up**
+
+- Nothing connects 5V directly to GND. With USB unplugged, a multimeter on continuity between the + and − rails should **not** beep.
+- Both LEDs have the long leg on the resistor side and the short leg on the GND side.
+- No resistor has both legs in the same row (that would short it out).
+- Some breadboards split each rail in the middle. If yours does, bridge the halves with a jumper, or keep every rail connection on the same half.
+
+**Circuit check**
+
+With USB unplugged, a multimeter on Ω should read about **220 Ω** from the D3 pin to `c24`, and about **1 kΩ** from D2 to `c32`.
+
+### 2.4 Power-on test
 
 1. Plug in USB. The Nano's own power LED lights.
 2. Upload the sketch (section 4).
 3. **Both LEDs blink 3 times** (self test), then the data LED flickers in bursts about once a second, with the status LED on during each burst.
-4. Open Serial Monitor (9600 baud). You should see `[TX #1] "..."` lines, and turning the pot prints `Selected slot N`.
+4. Open Serial Monitor (9600 baud). You should see `[TX #1] "..."` lines, and turning the pot prints `Selected slot N` (with `(LIVE telemetry)` or `(custom message)` for the last two slots).
 
 | Problem | Likely cause |
 |---|---|
@@ -83,14 +146,14 @@ The transmitter is three small circuits, each starting at a Nano pin and ending 
 | Nano not detected by the PC | Clone boards need the CH340 USB driver. Also try another cable: some cables only charge. |
 | Upload fails | Tools → Processor → **ATmega328P (Old Bootloader)**. |
 
-### 2.4 Aiming the beam
+### 2.5 Aiming the beam
 
 - Mount the data LED so it **points straight at the LDR**, 2–10 cm away, at the same height. Bend its legs 90° or extend them with female–male jumpers so you can aim it freely.
 - Slip a short **black straw or rolled paper tube** over the LED, and another over the LDR. This narrows the beam and blocks room light. It's the single biggest reliability improvement.
 - Keep the **status LED pointing away** from the LDR so it doesn't add a second signal.
 - Power: USB from a laptop lets you type custom messages. A USB power bank works too, for a cable-free demo.
 
-### 2.5 Optional: more range with a transistor
+### 2.6 Optional: more range with a transistor
 
 D3 can only supply ~20 mA safely. For a brighter beam (longer distance, or several LEDs in parallel, each with its own resistor), let a transistor switch the LED from 5V:
 
@@ -120,6 +183,7 @@ PREAMBLE | LEN (1 byte) | PAYLOAD (LEN bytes) | CHECKSUM (1 byte) | END
 
 - Bytes go out **MSB first**, 8 bits each.
 - `CHECKSUM = LEN XOR payload[0] XOR payload[1] …`. The receiver rejects any frame whose checksum doesn't match.
+- The frame is built by [`LiFiEncoder.h`](LiFiEncoder.h). It is plain C++, so the PC simulation in `../tests` runs exactly the same encoder against the real receiver decoder.
 - The receiver only has to measure how long each **ON** pulse lasts:
   `ON ≥ 55 ms → preamble`, `ON ≥ 20 ms → 1`, otherwise `0`.
   Each threshold sits halfway between two pulse widths. The receiver also subtracts the LDR's lag, which it measures on the preamble.
@@ -130,7 +194,7 @@ Speed (default timing): about 35 ms per bit, so roughly 28 bit/s. A 10-character
 
 ## 4. Upload
 
-1. Open `transmitter_nano.ino` in the Arduino IDE.
+1. Open `transmitter_nano.ino` in the Arduino IDE. `LiFiEncoder.h` must sit in the same `transmitter_nano` folder; the IDE shows it as a second tab.
 2. **Tools → Board → Arduino Nano**.
 3. **Tools → Processor → ATmega328P**. If upload fails, try **ATmega328P (Old Bootloader)**. Most clone Nanos need this one.
 4. Select the COM port and click Upload.
@@ -144,19 +208,23 @@ Speed (default timing): about 35 ms per bit, so roughly 28 bit/s. A 10-character
   | Pot position | Message |
   |---|---|
   | Slot 0 (fully CCW) | `HELLO LIFI` |
-  | Slot 1 | `TEMP:27C` |
-  | Slot 2 | `STATUS:OK` |
-  | Slot 3 | `ALERT!` |
-  | Slot 4 | `NODE-TX-01` |
+  | Slot 1 | `STATUS:OK` |
+  | Slot 2 | `ALERT!` |
+  | Slot 3 | `NODE-TX-01` |
+  | Slot 4 | **LIVE telemetry**, e.g. `T:31C V:4.97 #12` |
   | Slot 5 (fully CW) | Custom message from Serial |
 
+- **LIVE telemetry** is real data measured on every frame by the Nano's own ATmega328P, with no extra parts:
+  - `T:` is the chip's internal temperature sensor. It reads a few degrees above room temperature, and is only accurate to about ±10 °C out of the box. Compare with a thermometer and set `TEMP_OFFSET_C` at the top of the sketch.
+  - `V:` is the supply voltage, measured against the internal 1.1 V reference (about ±10 %). USB usually gives 4.7–5.1 V. Plugging in a power bank or a weak USB port visibly changes it.
+  - `#` is the frame number. It matches the `[TX #n]` line in Serial Monitor, so you can show the dashboard and the Nano agreeing frame by frame.
 - Type any text (up to 32 characters) in Serial Monitor and press Enter to set the custom message.
 - The frame repeats every ~1 s. The status LED stays on while a frame is being sent.
 - Each frame is logged to Serial, for example
   `[TX #4] "HELLO LIFI" len=10 chk=0x62`.
   Compare this with what the receiver prints to check the link.
 
-To change the presets, edit `MSG_0` … `MSG_4` at the top of the sketch. To add more, add `MSG_5` and include it in `MESSAGES[]`. The slot count adjusts automatically.
+To change the presets, edit `MSG_0` … `MSG_3` at the top of the sketch. To add more, add `MSG_4` and include it in `MESSAGES[]`. The slot count adjusts automatically: LIVE and custom always stay the last two slots.
 
 ## 6. Testing the transmitter alone (before the ESP32 is ready)
 
@@ -169,7 +237,7 @@ To change the presets, edit `MSG_0` … `MSG_4` at the top of the sketch. To add
 - **Alignment:** put the LED and LDR 2–10 cm apart and pointing straight at each other. A straw or black paper tube around the LDR blocks room light a lot.
 - **LED choice:** a white or red high-brightness LED works best with a CdS LDR. LDRs respond weakly to IR and blue.
 - **LDR speed:** a CdS LDR is slow to go dark again, so every pulse looks longer at the receiver. The receiver corrects for this automatically, using the 80 ms preamble as a timing reference. Simulation (`tests/`) shows the default timing works up to a sensor fall time of ~15 ms. Many LDRs are slower than that, about 30 ms for a GL5528. If the dashboard shows lots of `checksum`/`length` errors:
-  - set `LDR_SAFE_PROFILE = true` in this sketch **and** uncomment `#define LIFI_PROFILE LIFI_PROFILE_LDR_SAFE` in the receiver (~9 bit/s; works up to ~40 ms fall time); or
+  - uncomment `#define LIFI_TX_LDR_SAFE` in this sketch **and** uncomment `#define LIFI_PROFILE LIFI_PROFILE_LDR_SAFE` in the receiver (~9 bit/s; works up to ~40 ms fall time); or
   - swap the LDR for a **phototransistor (e.g. TEPT5700, L14G1) or photodiode**. They respond in microseconds.
 - **Never block in `delay()` elsewhere:** the timing is software-driven, so keep `loop()` simple. Add sensors only between frames.
 - **Power:** 220 Ω on D3 draws only ~10–15 mA, well below the Nano's 40 mA pin limit. For more range, drive a brighter LED through an NPN transistor (2N2222/BC547: D3 → 1 kΩ → base, LED + resistor on the collector).

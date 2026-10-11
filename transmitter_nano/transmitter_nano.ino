@@ -9,7 +9,7 @@
  *   D2  -> 1k   -> LED (anode)  ; LED cathode -> GND      (Tx status)
  *   A0  <- 10k pot wiper ; pot outer pins to 5V and GND   (message select)
  *
- * Frame on the wire
+ * Frame on the wire (built by LiFiEncoder.h)
  *   PREAMBLE | LEN | PAYLOAD[LEN] | CHECKSUM | END
  *   - every byte is sent MSB first, 8 bits
  *   - CHECKSUM = XOR of LEN and every payload byte
@@ -24,41 +24,47 @@
  * ON >= 55 ms -> preamble, ON >= 20 ms -> '1', otherwise '0'), after
  * subtracting the sensor lag it measures on the preamble.
  *
+ * Pot slots (counter-clockwise -> clockwise)
+ *   preset messages | LIVE telemetry | custom message from Serial
+ *   LIVE reads the Nano's own temperature sensor and supply voltage, so it
+ *   sends real, changing data with no extra parts.
+ *
  * Serial Monitor (9600 baud): type a line and press Enter to send a custom
  * message. Turn the pot back to another slot to return to the presets.
  */
+
+// Uncomment on BOTH boards if the receiver's LDR is too slow for the default
+// timing (receiver: uncomment LIFI_PROFILE_LDR_SAFE). ~9 bit/s instead of ~29.
+// Must come before the #include below.
+// #define LIFI_TX_LDR_SAFE
+
+#include "LiFiEncoder.h"
 
 // ---------- Pins ----------
 const uint8_t PIN_TX_LED     = 3;
 const uint8_t PIN_STATUS_LED = 2;
 const uint8_t PIN_SELECT_POT = A0;
 
-// ---------- Timing (ms) — must match the receiver ----------
-// Set to true on BOTH boards if the receiver's LDR is too slow for the default
-// timing (receiver: uncomment LIFI_PROFILE_LDR_SAFE). ~9 bit/s instead of ~29.
-const bool LDR_SAFE_PROFILE = false;
-
-const uint16_t T_PREAMBLE_ON  = LDR_SAFE_PROFILE ? 240 : 80;
-const uint16_t T_PREAMBLE_OFF = LDR_SAFE_PROFILE ? 120 : 40;
-const uint16_t T_ONE_ON       = LDR_SAFE_PROFILE ? 100 : 30;
-const uint16_t T_ZERO_ON      = LDR_SAFE_PROFILE ? 30  : 10;
-const uint16_t T_BIT_OFF      = LDR_SAFE_PROFILE ? 50  : 15;
-const uint16_t T_END_OFF      = LDR_SAFE_PROFILE ? 300 : 100;
-const uint16_t T_FRAME_GAP    = 1000;  // idle time between repeated frames
+const uint16_t T_FRAME_GAP = 1000;  // idle time between repeated frames (ms)
 
 // ---------- Messages ----------
-const uint8_t MAX_PAYLOAD = 32;
+const uint8_t MAX_PAYLOAD = lifi_tx::MAX_PAYLOAD;
 
 const char MSG_0[] PROGMEM = "HELLO LIFI";
-const char MSG_1[] PROGMEM = "TEMP:27C";
-const char MSG_2[] PROGMEM = "STATUS:OK";
-const char MSG_3[] PROGMEM = "ALERT!";
-const char MSG_4[] PROGMEM = "NODE-TX-01";
-const char* const MESSAGES[] PROGMEM = { MSG_0, MSG_1, MSG_2, MSG_3, MSG_4 };
+const char MSG_1[] PROGMEM = "STATUS:OK";
+const char MSG_2[] PROGMEM = "ALERT!";
+const char MSG_3[] PROGMEM = "NODE-TX-01";
+const char* const MESSAGES[] PROGMEM = { MSG_0, MSG_1, MSG_2, MSG_3 };
 const uint8_t NUM_PRESETS = sizeof(MESSAGES) / sizeof(MESSAGES[0]);
-// The pot range is split into NUM_PRESETS + 1 slots; the last slot sends
-// the custom message received over Serial.
-const uint8_t NUM_SLOTS = NUM_PRESETS + 1;
+// The pot range is split into slots: one per preset, then live telemetry,
+// then (fully clockwise) the custom message received over Serial.
+const uint8_t SLOT_LIVE   = NUM_PRESETS;
+const uint8_t SLOT_CUSTOM = NUM_PRESETS + 1;
+const uint8_t NUM_SLOTS   = NUM_PRESETS + 2;
+
+// The internal temperature sensor is only accurate to about +-10 C out of the
+// box. Compare with a thermometer and put the difference here.
+const int8_t TEMP_OFFSET_C = 0;
 
 char customMsg[MAX_PAYLOAD + 1] = "CUSTOM";
 char serialBuf[MAX_PAYLOAD + 1];
@@ -69,56 +75,80 @@ uint32_t frameCount = 0;
 
 // ---------- Low-level symbol output ----------
 void pulse(uint16_t onMs, uint16_t offMs) {
-  digitalWrite(PIN_TX_LED, HIGH);
-  delay(onMs);
+  if (onMs > 0) {
+    digitalWrite(PIN_TX_LED, HIGH);
+    delay(onMs);
+  }
   digitalWrite(PIN_TX_LED, LOW);
   delay(offMs);
 }
 
-void sendPreamble() { pulse(T_PREAMBLE_ON, T_PREAMBLE_OFF); }
-
-void sendBit(bool b) { pulse(b ? T_ONE_ON : T_ZERO_ON, T_BIT_OFF); }
-
-void sendByte(uint8_t value) {
-  for (int8_t i = 7; i >= 0; i--) {
-    sendBit((value >> i) & 0x01);
-  }
-}
-
-void sendEnd() {
-  digitalWrite(PIN_TX_LED, LOW);
-  delay(T_END_OFF);
-}
-
 // ---------- Frame ----------
 void sendFrame(const char* msg) {
-  uint8_t len = strnlen(msg, MAX_PAYLOAD);
-  uint8_t checksum = len;
+  uint8_t frame[lifi_tx::MAX_FRAME_BYTES];
+  uint8_t n = lifi_tx::buildFrame(msg, frame);
+  if (frame[0] == 0) return;  // empty message: nothing to send
 
   digitalWrite(PIN_STATUS_LED, HIGH);
-
-  sendPreamble();
-  sendByte(len);
-  for (uint8_t i = 0; i < len; i++) {
-    sendByte((uint8_t)msg[i]);
-    checksum ^= (uint8_t)msg[i];
-  }
-  sendByte(checksum);
-  sendEnd();
-
+  lifi_tx::emitFrame(frame, n, lifi_tx::TIMING, pulse);
   digitalWrite(PIN_STATUS_LED, LOW);
 
   frameCount++;
+  uint8_t checksum = frame[n - 1];
   Serial.print(F("[TX #"));
   Serial.print(frameCount);
   Serial.print(F("] \""));
   Serial.print(msg);
   Serial.print(F("\" len="));
-  Serial.print(len);
+  Serial.print(frame[0]);
   Serial.print(F(" chk=0x"));
   if (checksum < 0x10) Serial.print('0');
   Serial.println(checksum, HEX);
 }
+
+// ---------- Live telemetry (ATmega328P internal sensors) ----------
+#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__)
+// One conversion on an internal ADC channel. ADMUX selects the reference and
+// channel; analogRead() rewrites ADMUX on every call, so A0 is unaffected.
+uint16_t readInternalAdc(uint8_t admux) {
+  ADMUX = admux;
+  delay(10);                       // let the reference and mux settle
+  ADCSRA |= _BV(ADSC);             // first conversion after a switch is
+  while (bit_is_set(ADCSRA, ADSC)) // inaccurate: discard it
+    ;
+  ADCSRA |= _BV(ADSC);
+  while (bit_is_set(ADCSRA, ADSC))
+    ;
+  return ADCW;
+}
+
+// Channel 8 = temperature sensor, measured against the 1.1 V reference.
+int16_t readChipTempC() {
+  uint16_t raw = readInternalAdc(_BV(REFS1) | _BV(REFS0) | _BV(MUX3));
+  return (int16_t)(((int32_t)raw * 100 - 32431) / 122) + TEMP_OFFSET_C;
+}
+
+// Channel 14 = 1.1 V bandgap, measured against AVCC; Vcc = 1.1 * 1023 / raw.
+// Done last so the reference is back on AVCC for the next analogRead().
+uint16_t readVccMillivolts() {
+  uint16_t raw = readInternalAdc(_BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1));
+  return raw ? (uint16_t)(1125300UL / raw) : 0;
+}
+
+// e.g. "T:31C V:4.97 #12" (frame number matches the [TX #12] Serial log)
+void buildTelemetry(char* out) {
+  int16_t tempC = readChipTempC();
+  uint16_t mv = readVccMillivolts();
+  snprintf(out, MAX_PAYLOAD + 1, "T:%dC V:%u.%02u #%lu",
+           tempC, mv / 1000, (mv % 1000) / 10, (unsigned long)(frameCount + 1));
+}
+#else
+// Other boards (e.g. Nano Every) have a different ADC: send uptime instead.
+void buildTelemetry(char* out) {
+  snprintf(out, MAX_PAYLOAD + 1, "UP:%lus #%lu",
+           (unsigned long)(millis() / 1000), (unsigned long)(frameCount + 1));
+}
+#endif
 
 // ---------- Input handling ----------
 // Map the pot to a slot, with hysteresis so the selection doesn't flicker
@@ -139,6 +169,8 @@ void getMessageForSlot(int8_t slot, char* out) {
   if (slot < NUM_PRESETS) {
     strncpy_P(out, (const char*)pgm_read_ptr(&MESSAGES[slot]), MAX_PAYLOAD);
     out[MAX_PAYLOAD] = '\0';
+  } else if (slot == SLOT_LIVE) {
+    buildTelemetry(out);
   } else {
     strncpy(out, customMsg, MAX_PAYLOAD + 1);
   }
@@ -171,7 +203,7 @@ void setup() {
 
   Serial.begin(9600);
   Serial.println(F("LiFi Transmitter ready."));
-  Serial.println(F("Pot selects a preset; last position = custom message."));
+  Serial.println(F("Pot: presets, then LIVE telemetry, fully CW = custom message."));
   Serial.println(F("Type text + Enter to set the custom message."));
 
   // Power-on self test: blink both LEDs 3 times.
@@ -192,7 +224,10 @@ void loop() {
   if (slot != currentSlot) {
     currentSlot = slot;
     Serial.print(F("Selected slot "));
-    Serial.println(slot);
+    Serial.print(slot);
+    if (slot == SLOT_LIVE) Serial.println(F(" (LIVE telemetry)"));
+    else if (slot == SLOT_CUSTOM) Serial.println(F(" (custom message)"));
+    else Serial.println();
   }
 
   char msg[MAX_PAYLOAD + 1];

@@ -12,7 +12,7 @@ A free-space optical data link built from hobby parts. An **Arduino Nano** encod
 
 | Folder | What's inside |
 |---|---|
-| [`transmitter_nano/`](transmitter_nano) | Nano sketch + wiring and upload guide |
+| [`transmitter_nano/`](transmitter_nano) | Nano sketch, frame encoder, breadboard build + upload guide |
 | [`receiver_esp32/`](receiver_esp32) | ESP32 sketch, decoder, dashboard + guide |
 | [`tests/`](tests) | PC simulation of the full link (encoder → LDR model → decoder) |
 | [`docs/`](docs) | Images |
@@ -52,7 +52,9 @@ PREAMBLE | LEN | PAYLOAD (LEN bytes) | CHECKSUM | END
 make -C tests
 ```
 
-This runs the real decoder (`receiver_esp32/LiFiDecoder.h`) against a simulated transmitter, LDR lag and ADC noise. It checks:
+This runs the Nano's real encoder (`transmitter_nano/LiFiEncoder.h`) and the ESP32's real decoder (`receiver_esp32/LiFiDecoder.h`) through a simulated LDR with lag and ADC noise. It checks:
+- that the encoder produces the right bytes and pulses
+- that both boards use identical timing, in both profiles
 - correct decoding in auto and manual threshold modes
 - that corrupted frames are rejected
 - that no false frames appear when the threshold is wrong
@@ -64,9 +66,10 @@ It also prints a table of which LDR speeds each timing profile can handle.
 1. **Show the hardware.** "The Nano is the transmitter, the ESP32 the receiver. There are no wires between them, only light."
 2. **Open the dashboard** on a phone. Point at the scope: "This is the light the LDR sees: a long preamble, then short and long pulses for 0s and 1s."
 3. **Send presets.** Turn the transmitter pot. Each new message appears on the dashboard, and the buzzer chirps.
-4. **Send a custom message.** Type it into the Nano's Serial Monitor with the pot fully clockwise. It appears on the phone.
-5. **Break the beam.** Put a hand in the way mid-frame. The log shows a `truncated` frame, and link quality drops. "The checksum means we never display corrupted data."
-6. **Calibration.** Shine a phone torch nearby or switch on a lamp. Show the threshold line adapting (auto), or turn the pot to compensate (manual).
+4. **Live telemetry.** Turn to the LIVE slot. The Nano sends its own chip temperature and supply voltage, and the frame number matches the Nano's Serial log. Hold a finger on the Nano's chip and the temperature creeps up.
+5. **Send a custom message.** Type it into the Nano's Serial Monitor with the pot fully clockwise. It appears on the phone.
+6. **Break the beam.** Put a hand in the way mid-frame. The log shows a `truncated` frame, and link quality drops. "The checksum means we never display corrupted data."
+7. **Calibration.** Shine a phone torch nearby or switch on a lamp. Show the threshold line adapting (auto), or turn the pot to compensate (manual).
 
 ## Concepts to explain
 
@@ -81,6 +84,6 @@ It also prints a table of which LDR speeds each timing profile can handle.
 ## Ideas to extend it
 
 - Replace the LDR with a phototransistor and shorten every timing about 10×.
-- Send a live sensor reading (e.g. a temperature sensor on the Nano) instead of fixed text.
+- Add an external sensor (DHT11, LM35, …) to the LIVE telemetry slot.
 - Use Manchester encoding or a CRC-8 for better error detection.
 - Add a reverse channel (IR LED on the ESP32, sensor on the Nano) for acknowledgements.

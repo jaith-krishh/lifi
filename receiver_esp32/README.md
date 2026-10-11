@@ -93,7 +93,7 @@ Both boards must use the same profile.
 
 To switch to `LDR_SAFE`:
 - **Receiver:** uncomment `#define LIFI_PROFILE LIFI_PROFILE_LDR_SAFE` near the top of `receiver_esp32.ino`.
-- **Transmitter:** set `LDR_SAFE_PROFILE = true` in `transmitter_nano.ino`.
+- **Transmitter:** uncomment `#define LIFI_TX_LDR_SAFE` near the top of `transmitter_nano.ino`.
 
 The dashboard title shows which profile the receiver is running.
 
